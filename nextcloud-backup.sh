@@ -4,8 +4,11 @@
 # Simple Nextcloud Backup Script
 # 
 # A streamlined backup solution for Nextcloud installations using rsync and mysqldump.
-# Supports multiple servers with SSH key authentication.
+# Supports multiple servers with SSH key and password authentication.
 #
+# Created by: RyderAsking
+# Version: 1.0.0
+# 
 # Usage: ./nextcloud-backup.sh [command] [options]
 # Commands:
 #   backup [server]     - Backup specified server or all servers
@@ -22,6 +25,7 @@ set -euo pipefail
 # Script metadata
 readonly SCRIPT_NAME="Simple Nextcloud Backup"
 readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_AUTHOR="RyderAsking"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Configuration paths
