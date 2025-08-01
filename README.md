@@ -18,7 +18,7 @@ A streamlined backup solution for Nextcloud installations using rsync and mysqld
 1. **Download the script**:
 
    ```bash
-   wget https://raw.githubusercontent.com/your-repo/nextcloud-backup.sh
+   wget https://raw.githubusercontent.com/RyderAsKing/Nextcloud-backup/refs/heads/main/nextcloud-backup.sh
    chmod +x nextcloud-backup.sh
    ```
 
@@ -58,7 +58,7 @@ A streamlined backup solution for Nextcloud installations using rsync and mysqld
 1. **Clone or download the script**:
 
    ```bash
-   git clone https://github.com/your-repo/nextcloud-backup.git
+   git clone https://github.com/RyderAsKing/Nextcloud-backup.git
    cd nextcloud-backup
    ```
 
