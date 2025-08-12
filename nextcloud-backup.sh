@@ -995,6 +995,12 @@ cleanup_old_backups() {
     local backup_dirs=($(find "$server_backup_dir" -maxdepth 1 -type d -name "20*" 2>/dev/null | sort))
     local total_backups=${#backup_dirs[@]}
     
+    # Debug: Show all found backups
+    log "INFO" "Debug: Found backup directories:"
+    for debug_dir in "${backup_dirs[@]}"; do
+        log "INFO" "  - $(basename "$debug_dir")"
+    done
+    
     if [[ $total_backups -eq 0 ]]; then
         log "INFO" "No backups found for server $server"
         return 0
@@ -1017,26 +1023,84 @@ cleanup_old_backups() {
     for ((i=0; i<backups_to_remove; i++)); do
         local backup_dir="${backup_dirs[$i]}"
         local backup_name=$(basename "$backup_dir")
-        local backup_size=$(du -sh "$backup_dir" 2>/dev/null | cut -f1)
         
-        log "INFO" "Removing old backup: $backup_name (size: $backup_size)"
-        
-        if rm -rf "$backup_dir" 2>/dev/null; then
-            log "SUCCESS" "Removed backup: $backup_name"
-            ((removed_count++))
-        else
-            log "ERROR" "Failed to remove backup: $backup_name"
-            ((failed_count++))
+        # Get backup size safely
+        local backup_size="unknown"
+        if [[ -d "$backup_dir" ]]; then
+            backup_size=$(du -sh "$backup_dir" 2>/dev/null | cut -f1 || echo "unknown")
         fi
+        
+        log "INFO" "Removing old backup ($((i+1))/$backups_to_remove): $backup_name (size: $backup_size)"
+        
+        # More robust removal with better error handling
+        if [[ -d "$backup_dir" ]]; then
+            # Temporarily disable exit on error for the entire removal process
+            set +e
+            
+            # First attempt: standard removal
+            rm -rf "$backup_dir" 2>/dev/null
+            local rm_exit_code=$?
+            
+            if [[ $rm_exit_code -eq 0 ]]; then
+                log "SUCCESS" "Removed backup: $backup_name"
+                ((removed_count++))
+            else
+                log "ERROR" "Failed to remove backup: $backup_name (exit code: $rm_exit_code)"
+                
+                # Try alternative removal method
+                log "INFO" "Attempting alternative removal method for: $backup_name"
+                chmod -R 755 "$backup_dir" 2>/dev/null
+                rm -rf "$backup_dir" 2>/dev/null
+                local alt_rm_exit_code=$?
+                
+                if [[ $alt_rm_exit_code -eq 0 ]]; then
+                    log "SUCCESS" "Removed backup with alternative method: $backup_name"
+                    ((removed_count++))
+                else
+                    log "ERROR" "Alternative removal also failed for backup: $backup_name"
+                    ((failed_count++))
+                fi
+            fi
+            
+            # Re-enable exit on error
+            set -e
+        else
+            log "WARNING" "Backup directory no longer exists: $backup_name"
+            # Count as removed since it's already gone
+            ((removed_count++))
+        fi
+        
+        log "INFO" "Progress: $((i+1))/$backups_to_remove completed (removed: $removed_count, failed: $failed_count)"
     done
     
     # Summary
     if [[ $failed_count -eq 0 ]]; then
         log "SUCCESS" "Cleanup completed for server $server: removed $removed_count backup(s)"
         log "INFO" "Remaining backups: $((total_backups - removed_count))"
+        
+        # Verify cleanup by recounting remaining backups
+        local remaining_dirs=($(find "$server_backup_dir" -maxdepth 1 -type d -name "20*" 2>/dev/null | sort))
+        local actual_remaining=${#remaining_dirs[@]}
+        log "INFO" "Verification: $actual_remaining backup directories actually remain"
+        
+        if [[ $actual_remaining -eq $retention_count ]]; then
+            log "SUCCESS" "Cleanup verification passed: exactly $retention_count backups remain"
+        elif [[ $actual_remaining -lt $retention_count ]]; then
+            log "WARNING" "Cleanup removed more backups than expected: $actual_remaining remain (expected $retention_count)"
+        else
+            log "ERROR" "Cleanup incomplete: $actual_remaining remain (expected $retention_count)"
+            return 1
+        fi
+        
         return 0
     else
         log "WARNING" "Cleanup completed with errors for server $server: removed $removed_count, failed $failed_count"
+        
+        # Still verify what actually remains
+        local remaining_dirs=($(find "$server_backup_dir" -maxdepth 1 -type d -name "20*" 2>/dev/null | sort))
+        local actual_remaining=${#remaining_dirs[@]}
+        log "INFO" "Verification: $actual_remaining backup directories actually remain after partial cleanup"
+        
         return 1
     fi
 }
