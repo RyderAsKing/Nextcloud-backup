@@ -4,14 +4,34 @@ A streamlined backup solution for Nextcloud installations using rsync and mysqld
 
 ## Features
 
-- **Simple & Lightweight**: Single script with minimal dependencies
+- **Simple & Lightweight**: Modular shell scripts with minimal dependencies
 - **Multi-Server Support**: Backup multiple Nextcloud instances
 - **Dual SSH Authentication**: Both SSH key and password authentication supported
 - **Database Backup**: MySQL/MariaDB dump with single-transaction consistency
-- **File Synchronization**: Efficient rsync-based file backup
+- **File Synchronization**: Efficient rsync-based file backup with smart excludes
 - **Maintenance Mode**: Automatic maintenance mode during backup
 - **Retention Management**: Configurable backup retention policies
+- **Backup Metadata**: Detailed `backup_info.txt` generated for each backup
 - **Logging**: Comprehensive logging with colored console output
+
+## Project Structure
+
+```
+nextcloud-backup.sh     # Main entry point
+lib/
+├── backup.sh           # Backup logic (maintenance mode, DB dump, file sync, metadata)
+├── cleanup.sh          # Retention policy and old backup removal
+├── config.sh           # Configuration loading and server config parsing
+├── list.sh             # Listing and reporting available backups
+├── ssh.sh              # SSH connection building and testing
+└── utils.sh            # Shared utilities (logging, timestamps)
+config/                 # Created by --create-config
+├── backup.conf         # Global settings
+└── servers.conf        # Per-server definitions
+backups/                # Backup destination (configurable)
+logs/
+└── backup.log          # Unified log file
+```
 
 ## Quick Start
 
@@ -116,6 +136,7 @@ ssh_user=backup
 ssh_port=22
 ssh_auth_method=key
 ssh_key=/home/backup/.ssh/id_rsa
+ssh_pass=
 nextcloud_path=/var/www/nextcloud
 web_user=www-data
 db_host=localhost
@@ -145,6 +166,8 @@ db_user=backup_user
 db_pass="your_database_password"
 retention_count=7
 ```
+
+> **Note**: Running `--create-config` generates an `[example]` server entry with `enabled=false` as a starting template. Rename or copy the block and set `enabled=true` for each real server.
 
 **Important Notes:**
 
@@ -253,34 +276,29 @@ retention_count=7
 The script performs the following steps:
 
 1. **Pre-backup checks**:
-
    - Verify SSH connection
    - Check server configuration
 
 2. **Enable maintenance mode**:
-
    - Put Nextcloud in maintenance mode
    - Prevent user access during backup
 
 3. **Database backup**:
-
    - Create consistent database dump
    - Use single-transaction for InnoDB
 
 4. **File synchronization**:
-
-   - Sync config directory
-   - Sync data directory (excluding cache/thumbnails)
-   - Sync apps directory
+   - Sync `config/` directory
+   - Sync `data/` directory (excluding cache, thumbnails, trashbin, file versions, and app preview data)
+   - Sync `apps/` directory
 
 5. **Post-backup tasks**:
-
    - Disable maintenance mode
-   - Create backup metadata
+   - Create `backup_info.txt` with server details, timestamps, file counts, and total size
    - Log backup completion
 
 6. **Cleanup**:
-   - Remove old backups based on retention policy
+   - Remove old backups based on `retention_count` (oldest first)
 
 ## Backup Structure
 
@@ -288,16 +306,18 @@ The script performs the following steps:
 backups/
 ├── production/
 │   ├── 2025-01-20_14-30-15/
-│   │   ├── database.sql
-│   │   ├── config/
-│   │   ├── data/
-│   │   ├── apps/
-│   │   └── backup_info.txt
+│   │   ├── database.sql        # mysqldump output
+│   │   ├── config/             # Nextcloud config directory
+│   │   ├── data/               # Nextcloud data directory
+│   │   ├── apps/               # Nextcloud apps directory
+│   │   └── backup_info.txt     # Metadata: server, timestamps, file counts, total size
 │   └── 2025-01-19_14-30-10/
 │       └── ...
 └── development/
     └── ...
 ```
+
+Backup directories are named `YYYY-MM-DD_HH-MM-SS` and sorted/cleaned oldest-first by the cleanup routine.
 
 ## Scheduling
 
